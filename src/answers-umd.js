@@ -28,6 +28,7 @@ import { isValidContext } from './core/utils/apicontext';
 import FilterNodeFactory from './core/filters/filternodefactory';
 import { urlWithoutQueryParamsAndHash } from './core/utils/urlutils';
 import TranslationProcessor from './core/i18n/translationprocessor';
+import AnswersConfigBuilder from './core/models/answersconfigbuilder';
 import Filter from './core/models/filter';
 import SearchComponent from './ui/components/search/searchcomponent';
 import QueryUpdateListener from './core/statelisteners/queryupdatelistener';
@@ -39,11 +40,6 @@ import QueryUpdateListener from './core/statelisteners/queryupdatelistener';
  * @typedef Services
  * @property {ErrorReporterService} errorReporterService
  */
-
-const DEFAULTS = {
-  locale: LOCALE,
-  querySource: QUERY_SOURCE
-};
 
 /**
  * The main Answers interface
@@ -144,11 +140,9 @@ class Answers {
    */
   init (config, statusPage) {
     window.performance.mark('yext.answers.initStart');
-    const parsedConfig = this.parseConfig(config);
-    this.validateConfig(parsedConfig);
-
-    parsedConfig.search = new SearchConfig(parsedConfig.search);
-    parsedConfig.verticalPages = new VerticalPagesConfig(parsedConfig.verticalPages);
+    const answersConfig = new AnswersConfigBuilder()
+      .setRawConfig(config)
+      .build();
 
     const storage = new Storage({
       updateListener: (data, url) => {
@@ -192,10 +186,10 @@ class Answers {
       persistedValueParser: this._parsePersistentStorageValue
     });
     storage.init(window.location.search);
-    storage.set(StorageKeys.SEARCH_CONFIG, parsedConfig.search);
-    storage.set(StorageKeys.VERTICAL_PAGES_CONFIG, parsedConfig.verticalPages);
-    storage.set(StorageKeys.LOCALE, parsedConfig.locale);
-    storage.set(StorageKeys.QUERY_SOURCE, parsedConfig.querySource);
+    storage.set(StorageKeys.SEARCH_CONFIG, answersConfig.search);
+    storage.set(StorageKeys.VERTICAL_PAGES_CONFIG, answersConfig.verticalPages);
+    storage.set(StorageKeys.LOCALE, answersConfig.locale);
+    storage.set(StorageKeys.QUERY_SOURCE, answersConfig.querySource);
 
     // Check if sessionsOptIn data is stored in the URL. If it is, prefer that over
     // what is in parsedConfig.
@@ -203,7 +197,7 @@ class Answers {
     if (!sessionOptIn) {
       storage.set(
         StorageKeys.SESSIONS_OPT_IN,
-        { value: parsedConfig.sessionTrackingEnabled, setDynamically: false });
+        { value: answersConfig.sessionTrackingEnabled, setDynamically: false });
     } else {
       // If sessionsOptIn was stored in the URL, it was stored only as a string.
       // Parse this value and add it back to storage.
@@ -212,7 +206,7 @@ class Answers {
         { value: (/^true$/i).test(sessionOptIn), setDynamically: true });
     }
 
-    parsedConfig.noResults && storage.set(StorageKeys.NO_RESULTS_CONFIG, parsedConfig.noResults);
+    answersConfig.noResults && storage.set(StorageKeys.NO_RESULTS_CONFIG, answersConfig.noResults);
     const isSuggestQueryTrigger =
       storage.get(StorageKeys.QUERY_TRIGGER) === QueryTriggers.SUGGEST;
     if (storage.has(StorageKeys.QUERY) && !isSuggestQueryTrigger) {
@@ -234,19 +228,19 @@ class Answers {
 
     this._services = parsedConfig.mock
       ? getMockServices()
-      : getServices(parsedConfig, storage);
+      : getServices(answersConfig, storage);
 
-    this._eligibleForAnalytics = parsedConfig.businessId != null;
+    this._eligibleForAnalytics = answersConfig.businessId != null;
     // TODO(amullings): Initialize with other services
-    if (this._eligibleForAnalytics && parsedConfig.mock) {
+    if (this._eligibleForAnalytics && answersConfig.useMock) {
       this._analyticsReporterService = new NoopAnalyticsReporter();
     } else if (this._eligibleForAnalytics) {
       this._analyticsReporterService = new AnalyticsReporter(
-        parsedConfig.experienceKey,
-        parsedConfig.experienceVersion,
-        parsedConfig.businessId,
-        parsedConfig.analyticsOptions,
-        parsedConfig.environment);
+        answersConfig.experienceKey,
+        answersConfig.experienceVersion,
+        answersConfig.businessId,
+        answersConfig.analyticsOptions,
+        answersConfig.environment);
 
       // listen to query id updates
       storage.registerListener({
@@ -260,7 +254,7 @@ class Answers {
     }
 
     this.core = new Core({
-      apiKey: parsedConfig.apiKey,
+      apiKey: answersConfig.apiKey,
       storage: storage,
       experienceKey: parsedConfig.experienceKey,
       fieldFormatters: parsedConfig.fieldFormatters,
@@ -273,23 +267,22 @@ class Answers {
       componentManager: this.components
     });
 
-    if (parsedConfig.onStateChange && typeof parsedConfig.onStateChange === 'function') {
-      parsedConfig.onStateChange(
-        Object.fromEntries(storage.getAll()),
-        this.core.storage.getCurrentStateUrlMerged());
-    }
+    answersConfig.onStateChange(
+      Object.fromEntries(storage.getAll()),
+      this.core.storage.getCurrentStateUrlMerged()
+    );
 
     this.components
       .setCore(this.core)
       .setRenderer(this.renderer);
 
-    this._setDefaultInitialSearch(parsedConfig.search);
+    this._setDefaultInitialSearch(answersConfig.search);
 
     this.core.init();
 
     this._onReady = parsedConfig.onReady || function () {};
 
-    const asyncDeps = this._loadAsyncDependencies(parsedConfig);
+    const asyncDeps = this._loadAsyncDependencies(answersConfig);
     return asyncDeps.finally(() => {
       this._onReady();
       if (!this.components.getActiveComponent(SearchComponent.type)) {
@@ -361,53 +354,6 @@ class Answers {
   onReady (cb) {
     this._onReady = cb;
     return this;
-  }
-
-  /**
-   * Parses the config provided by the user. In the parsed config, any options not supplied by the
-   * user are given default values.
-   * @param {Object} config The user supplied config.
-   */
-  parseConfig (config) {
-    const parsedConfig = Object.assign({}, DEFAULTS, config);
-    let sessionTrackingEnabled = true;
-    if (typeof config.sessionTrackingEnabled === 'boolean') {
-      sessionTrackingEnabled = config.sessionTrackingEnabled;
-    }
-    parsedConfig.sessionTrackingEnabled = sessionTrackingEnabled;
-
-    const sandboxPrefix = `${SANDBOX}-`;
-    parsedConfig.apiKey.includes(sandboxPrefix)
-      ? parsedConfig.environment = SANDBOX
-      : parsedConfig.environment = PRODUCTION;
-    parsedConfig.apiKey = parsedConfig.apiKey.replace(sandboxPrefix, '');
-
-    return parsedConfig;
-  }
-
-  /**
-   * Validates the Answers config object to ensure things like api key and experience key are
-   * properly set.
-   * @param {Object} config The Answers config.
-   */
-  validateConfig (config) {
-    // TODO (tmeyer): Extract this method into it's own class. Investigate the use of JSON schema
-    // to validate these configs.
-    if (typeof config.apiKey !== 'string') {
-      throw new Error('Missing required `apiKey`. Type must be {string}');
-    }
-
-    if (typeof config.experienceKey !== 'string') {
-      throw new Error('Missing required `experienceKey`. Type must be {string}');
-    }
-
-    if (config.onVerticalSearch && typeof config.onVerticalSearch !== 'function') {
-      throw new Error('onVerticalSearch must be a function. Current type is: ' + typeof config.onVerticalSearch);
-    }
-
-    if (config.onUniversalSearch && typeof config.onUniversalSearch !== 'function') {
-      throw new Error('onUniversalSearch must be a function. Current type is: ' + typeof config.onUniversalSearch);
-    }
   }
 
   /**
