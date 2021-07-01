@@ -63,7 +63,7 @@ exports.legacyBundle = function (callback, outputConfig, bundleName, locale, lib
     plugins: [
       resolve({ browser: true }),
       commonjs({
-        include: [/node_modules/]
+        include: [/node_modules/, /answers-core/]
       }),
       babel({
         runtimeHelpers: true,
