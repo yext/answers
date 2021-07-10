@@ -1,5 +1,6 @@
 import DOM from '../../../../src/ui/dom/dom';
 import mockManager from '../../../setup/managermocker';
+import { mount } from 'enzyme';
 import StorageKeys from '../../../../src/core/storage/storagekeys';
 import SpellCheckComponent from '../../../../src/ui/components/search/spellcheckcomponent';
 
@@ -17,8 +18,10 @@ describe('spellcheck redirect links', () => {
     type: 'SUGGEST'
   });
 
-  const correctedQueryUrl = component.getState('correctedQueryUrl');
-  const linkUrlParams = new URLSearchParams(correctedQueryUrl);
+  const wrapper = mount(component);
+  const suggestionLinkWrapper = wrapper.find('.yxt-SpellCheck-container a');
+  const suggestionLinkURL = new URL(suggestionLinkWrapper.getDOMNode().href);
+  const linkUrlParams = new URLSearchParams(suggestionLinkURL.search);
 
   it('redirect links contain a query url param', () => {
     const query = linkUrlParams.get('query');

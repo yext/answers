@@ -135,7 +135,8 @@
     "testMatch": [
       "**/tests/core/**/*.js",
       "**/tests/ui/**/*.js",
-      "**/tests/conf/**/*.js"
+      "**/tests/conf/**/*.js",
+      "**/tests/answers-umd.js"
     ]
   },
   "percy": {

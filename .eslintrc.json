@@ -3,6 +3,7 @@
    "ignorePatterns": ["dist", "docs"],
    "globals": {
       "beforeEach": true,
+      "afterEach": true,
       "beforeAll": true,
       "describe": true,
       "it": true,
