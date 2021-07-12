@@ -499,6 +499,14 @@ class Answers {
   }
 
   /**
+   * Sets the query source which is included with universal and vertical searches
+   * @param {string} source
+   */
+  setQuerySource (source) {
+    this.core.storage.set(StorageKeys.QUERY_SOURCE, source);
+  }
+
+  /**
    * Sets a search query on initialization for vertical searchers that have a
    * defaultInitialSearch provided, if the user hasn't already provided their
    * own via URL param. A default initial search should not be persisted in the URL,

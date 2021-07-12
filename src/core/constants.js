@@ -15,7 +15,7 @@ export const SANDBOX = 'sandbox';
 /** The default url for compiled component templates */
 export const COMPILED_TEMPLATES_URL = `https://assets.sitescdn.net/answers/${LIB_VERSION}/answerstemplates.compiled.min.js`;
 
-/** The query source, reported with analytics */
+/** The default query source reported with analytics */
 export const QUERY_SOURCE = 'STANDARD';
 
 export const ENDPOINTS = {
