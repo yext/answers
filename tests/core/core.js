@@ -3,6 +3,11 @@ import SearchConfig from '../../src/core/models/searchconfig';
 import Storage from '../../src/core/storage/storage';
 import StorageKeys from '../../src/core/storage/storagekeys';
 
+jest.mock('../../src/core/utils/uuid');
+const foo = require('../../src/core/utils/uuid');
+// foo is a mock function
+foo.generateUUID = jest.fn(() => '42');
+
 describe('Search requests are created properly', () => {
   window.performance.mark = jest.fn();
   const context = {
@@ -37,6 +42,44 @@ describe('Search requests are created properly', () => {
       expect.objectContaining({
         limit: { lim: 4 }
       })
+    );
+  });
+});
+
+describe('Search requests are created properly', () => {
+  it('sessionId is passed in universal search', () => {
+    const mockCore = getMockCore();
+    mockCore.storage.set(StorageKeys.SESSIONS_OPT_IN, { value: true });
+    mockCore.search();
+    expect(mockCore._coreLibrary.universalSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: '42' })
+    );
+  });
+
+  it('sessionId is passed in vertical search', () => {
+    const mockCore = getMockCore();
+    mockCore.storage.set(StorageKeys.SESSIONS_OPT_IN, { value: true });
+    mockCore.verticalSearch();
+    expect(mockCore._coreLibrary.verticalSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: '42' })
+    );
+  });
+
+  it('sessionId is passed in universal search', () => {
+    const mockCore = getMockCore();
+    mockCore.storage.set(StorageKeys.SESSIONS_OPT_IN, { value: false });
+    mockCore.search();
+    expect(mockCore._coreLibrary.universalSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: null })
+    );
+  });
+
+  it('sessionId is passed in vertical search', () => {
+    const mockCore = getMockCore();
+    mockCore.storage.set(StorageKeys.SESSIONS_OPT_IN, { value: false });
+    mockCore.verticalSearch();
+    expect(mockCore._coreLibrary.verticalSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: null })
     );
   });
 });
